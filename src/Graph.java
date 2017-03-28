@@ -6,12 +6,18 @@ import java.util.*;
 
 public class Graph {
 
-    private class Vertex {
+    /**
+     * Inner class Vertex
+     */
+    private class Vertex implements Comparable<Vertex> {
 
-        String identifier_;      // station name
-        String type_;           // station type (fuel, electric, hybrid)
-        LinkedList<Integer> adjWeight_;  // adjacent vertex weight
-        LinkedList<Vertex> adjVertex_;  // adjacent vertex
+        String              identifier_;  // station name
+        String              type_;        // station type (fuel, electric, hybrid)
+        Integer             distance_;    // distance to adj vertex
+        Vertex              path_;        // previous vertex on shortest path
+        LinkedList<Integer> adjWeight_;   // adjacent vertex weight
+        LinkedList<Vertex> adjVertex_;    // adjacent vertex
+
 
         public Vertex(String identifier, String type) {
 
@@ -19,11 +25,45 @@ public class Graph {
             type_ = type;
             adjWeight_ = new LinkedList<>();
             adjVertex_ = new LinkedList<>();
+
+            reset();
         }
 
+
+        /**
+         * reset all vertices
+         */
+        void reset() {
+
+            distance_ = Graph.INFINITY;
+            path_ = null;
+        }
+
+
+        /**
+         * @return a string representation of the vertex.
+         */
+        @Override
+        public String toString() {
+            return identifier_;
+        }
+
+        /**
+         * @param vertex the object to be compared.
+         * @return a negative integer, zero, or a positive integer as this object
+         * is less than, equal to, or greater than the specified object.
+         * @throws NullPointerException if the specified object is null
+         * @throws ClassCastException   if the specified object's type prevents it
+         *                              from being compared to this object.
+         */
+        @Override
+        public int compareTo(Vertex vertex) {
+
+            return Integer.compare(distance_, vertex.distance_);
+        }
     }
 
-    public static final int INFINITY = Integer.MAX_VALUE;
+    private static final int INFINITY = Integer.MAX_VALUE;
     private HashMap<String, Vertex> vertexMap_ = new HashMap<>();
 
 
@@ -62,80 +102,121 @@ public class Graph {
         return  newVertex;
     }
 
-    public boolean dijkstra ( String source, String target ) throws NoSuchElementException {
+    public void dijkstra ( String source ) throws NoSuchElementException {
 
-        Vertex u = vertexMap_.get(source);
-        Vertex v = vertexMap_.get(target);
+        clear(); // first, clear all vertices
 
-        if ( u == null || v == null )
-            throw new NoSuchElementException( source + " or " + target + " is not a vertex in this graph");
+        Vertex start = vertexMap_.get(source);
 
+        if ( start == null )
+            throw new NoSuchElementException( source + " is not a vertex in this graph");
 
-        HashMap<Vertex, Vertex> previous = new HashMap<>();
-        HashMap<String, Integer> distance = new HashMap<>();
+        start.distance_ = 0;
+        PriorityQueue<Vertex> unVisitedVerticesQueue = new PriorityQueue<>();
 
-        PriorityQueue<Vertex> unVisitedVertices = new PriorityQueue<>(vertexMap_.keySet().size(),
-                (Vertex first, Vertex second) -> {
+        unVisitedVerticesQueue.add(start);
 
-            int weightFirst = distance.get(first.identifier_);
-            int weightSecond = distance.get(second.identifier_);
+        while ( !unVisitedVerticesQueue.isEmpty() ) {
 
-            return weightFirst - weightSecond;
-        }); // all vertices are initially unvisited, source gets added first, used of Lambda Expression for the Comparator
+            Vertex u = unVisitedVerticesQueue.poll();
 
-        HashSet<Vertex> visitedVertices = new HashSet<>();    //  hold vertices that have been visited ( i.e., if a path from source to this node has been found)
+            Iterator it1 = start.adjVertex_.iterator();
+            Iterator it2 = start.adjWeight_.iterator();
 
-        distance.put(source, 0);
+            while ( it1.hasNext() && it2.hasNext() ) {
 
-        Iterator it = u.adjVertex_.iterator();
-        Iterator it2 = u.adjWeight_.iterator();
-        while ( it.hasNext() && it2.hasNext() ) {
+                Vertex v = (Vertex) it1.next();
+                Integer weight = (Integer) it2.next();
 
-            Vertex w = (Vertex) it.next();
-            Integer w2 = (Integer) it2.next();
+                if ( v.distance_ > u.distance_ + weight ) {
 
-            previous.put(w, u);
-            distance.put(w.identifier_, w2 );
-            unVisitedVertices.add(w);
-        }
+                    unVisitedVerticesQueue.remove(v);
 
-        visitedVertices.add(u);
+                    v.distance_ = u.distance_ + weight;
+                    v.path_ = u;
+                    unVisitedVerticesQueue.add(v);
 
-        /*for ( int i = 0; i < u.adjVertex_.size(); ++i ) {
-
-            Vertex w = (Vertex) u.adjVertex_.get(i);
-            Integer weight = (Integer) u.adjWeight_.get(i);
-
-            previous.put(w, u);
-            distance.put(w.identifier_, weight);
-            unVisitedVertices.add(w);
-        }
-
-        visitedVertices.add(u);*/
-
-        while ( unVisitedVertices.size() > 0 ) {
-
-            Vertex next = unVisitedVertices.poll();
-            int distanceToNext = distance.get(next.identifier_);
-
-            // for each unvisited adjacent vertices of next
-            it = next.adjVertex_.iterator();
-            while ( it.hasNext() ) {
-
-                Vertex w = (Vertex) it.next();
-                if ( visitedVertices.contains(w))
-                    continue;
+                }
             }
+        }
+    }
 
 
-            // to be continued
+    private List<Vertex> getShortestPath( String target) {
 
+        Vertex end = vertexMap_.get(target);
+
+        if ( end == null )
+            throw new NoSuchElementException( target + " is not a vertex in this graph");
+
+
+        /* Computing the shortest path from source to target by reverse iteration*/
+        List<Vertex> path = new ArrayList<>();
+        for (Vertex v = end; v != null; v = v.path_)
+            path.add(v);
+
+        Collections.reverse(path);
+
+        return path;
+    }
+
+
+    /**
+     * @return a string representation of the a graph.
+     */
+    public String toString() {
+
+        StringBuilder sb = new StringBuilder();
+
+        Iterator it = vertexMap_.values().iterator();
+        while ( it.hasNext() ) {
+
+            Vertex start = (Vertex) it.next();
+            sb.append( "( " + start + ", " + start.type_ + " ( ");
+
+            Iterator it2 = start.adjVertex_.iterator();
+            while ( it2.hasNext() ) {
+
+                Vertex adj = (Vertex) it2.next();
+                sb.append(adj + ", ");
+
+            } // end inner while
+
+            sb.append(" ))");
+
+        } // end outter while
+
+        return new String(sb);
+    }
+
+
+    public void printShortestPath(String target) {
+
+        List<Vertex> path = getShortestPath(target);
+
+        for ( int i = 0; i < path.size(); ++i ) {
+
+            if ( i > 0 )    // element separator
+                System.out.print(" ---> ");
+
+            System.out.print(path);
         }
 
+        System.out.println();
+    }
 
 
+    /**
+     * Reset all vertices
+     */
+    private void clear() {
 
+        Iterator it = vertexMap_.values().iterator();
 
-        return  false;
+        while ( it.hasNext() ) {
+
+            Vertex u = (Vertex) it.next();
+            u.reset();;
+        }
     }
 }
